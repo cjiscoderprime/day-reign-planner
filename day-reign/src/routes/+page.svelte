@@ -1,14 +1,22 @@
 <script lang="ts">
+    import Calendar from '#lib/components/Calendar.svelte';
+    import { onMount } from 'svelte';
     import EventForm from '#lib/components/EventForm.svelte';
+    import AuthForm from '#lib/components/AuthForm.svelte';
+    import { api, type AuthUser } from '#lib/api.ts';
+
     import type {
       CalendarEvent,
       EventInput
     } from '#lib/types/event.ts';
-    import Calendar from '#lib/components/Calendar.svelte';
 
-    import { onMount } from 'svelte';
+    let user = $state<AuthUser | null>(null);
+    let authLoading = $state(true);
+    let eventsLoading = $state(false);
+    let saving = $state(false);
+    let apiError = $state('');
 
-    let selectedDate = $state('');
+    let selectedDate = $state(localDateKey(new Date()));
 
     let currentTime = $state<Date | null>(null);
 
@@ -48,6 +56,23 @@
       );
     });
 
+    async function handleAuthenticated(account: AuthUser) {
+      user = account;
+      await loadEvents();
+    }
+
+    async function logout() {
+      try {
+        await api.logout();
+        user = null;
+        events = [];
+      } catch (error) {
+        apiError = error instanceof Error
+          ? error.message
+          : 'Could not log out';
+      }
+    }
+
     function compareEvents(a: CalendarEvent, b: CalendarEvent) {
       if (a.allDay !== b.allDay) {
         return a.allDay ? -1 : 1;
@@ -56,19 +81,39 @@
       return a.startTime.localeCompare(b.startTime);
     }
 
+    async function loadEvents() {
+      eventsLoading = true;
+      apiError = '';
+
+      try {
+        events = await api.getEvents();
+      } catch (error) {
+        apiError = error instanceof Error
+          ? error.message
+          : 'Could not load events';
+      } finally {
+        eventsLoading = false;
+      }
+    }
+
     function openCreateEvent() {
       editingEvent = null;
       showEventForm = true;
     }
 
-    function deleteEvent(id: string) {
-      const confirmed = window.confirm(
-        'Are you sure you want to delete this event?'
-      );
+    async function deleteEvent(id: string) {
+      if (!window.confirm('Delete this event?')) return;
 
-      if (!confirmed) return;
+      apiError = '';
 
-      events = events.filter((event) => event.id !== id);
+      try {
+        await api.deleteEvent(id);
+        events = events.filter((event) => event.id !== id);
+      } catch (error) {
+        apiError = error instanceof Error
+          ? error.message
+          : 'Could not delete event';
+      }
     }
 
     function localDateKey(date: Date): string {
@@ -77,31 +122,42 @@
       const day = String(date.getDate()).padStart(2, '0');
 
       return `${year}-${month}-${day}`;
-  }
+    }
 
     function closeEventForm() {
       showEventForm = false;
       editingEvent = null;
     }
 
-    function saveEvent(input: EventInput) {
-      if (editingEvent) {
-        events = events.map((event) =>
-          event.id === editingEvent?.id
-            ? { ...input, id: event.id }
-            : event
-        );
-      } else {
-        events = [
-          ...events,
-          {
-            ...input,
-            id: crypto.randomUUID()
-          }
-        ];
-      }
+    async function saveEvent(input: EventInput) {
+      if (saving) return;
+      saving = true;
+      apiError = '';
 
-      closeEventForm();
+      try {
+        if (editingEvent) {
+          const updated = await api.updateEvent(
+            editingEvent.id,
+            input
+          );
+
+          events = events.map((event) =>
+            event.id === updated.id ? updated : event
+          );
+        } else {
+          const created = await api.createEvent(input);
+
+          events = [...events, created];
+        }
+
+        closeEventForm();
+      } catch (error) {
+        apiError = error instanceof Error
+          ? error.message
+          : 'Could not save event';
+      } finally {
+        saving = false;
+      }
     }
 
     function editEvent(event: CalendarEvent) {
@@ -113,13 +169,29 @@
     const updateTime = () => {
       currentTime = new Date();
     };
-
     updateTime();
 
     const timer = setInterval(updateTime, 1000);
 
     return () => clearInterval(timer);
     });
+
+    onMount(() => {
+      async function restoreSession() {
+        try {
+          user = await api.me();
+        } catch {
+          user = null;
+        } finally {
+          authLoading = false;
+        }
+        if (user) {
+          await loadEvents();
+        }
+      }
+      void restoreSession();
+    });
+
 
     const dateFormatter = new Intl.DateTimeFormat('en-US', {
       weekday: 'long',
@@ -150,6 +222,18 @@
     <title>DayReign | Command Your Day</title>
   </svelte:head>
 
+  {#if authLoading}
+    <div class="flex min-h-screen items-center justify-center bg-[#F5F0E6]">
+      <p class="font-serif text-2xl text-[#8E2028]">
+        Opening DayReign...
+      </p>
+    </div>
+
+  {:else if !user}
+    <AuthForm onAuthenticated={handleAuthenticated} />
+
+  {:else}
+
   <div class="min-h-screen bg-[#F5F0E6] text-[#292524]">
 
     <!-- Navigation -->
@@ -159,7 +243,7 @@
               justify-between px-6 py-5"
       >
         <div class="flex items-center gap-3">
-          <span class="text-3xl text-[#8E2028]">❦</span>
+          <span class="text-3xl text-[#8E2028]">🏛️</span>
           <h1 class="font-serif text-2xl font-bold
                     tracking-widest text-[#8E2028]">
             DAYREIGN
@@ -170,10 +254,35 @@
                     text-[#9A793F] sm:block">
           TEMPUS REGIT ACTUM
         </span>
+
+         <button
+          onclick={logout}
+          class="rounded-lg border border-[#C6A052]
+                px-4 py-2 text-sm text-[#8E2028]
+                hover:bg-[#F5F0E6]">
+          Sign Out
+        </button>
+
       </nav>
     </header>
 
     <main class="mx-auto max-w-7xl space-y-8 px-6 py-10">
+
+      {#if apiError}
+      <div
+        role="alert"
+        class="rounded-xl border border-red-300
+        bg-red-50 p-4 text-red-800">
+          {apiError}
+      </div>
+      {/if}
+
+      {#if eventsLoading}
+        <p class="text-[#8E2028]">
+          Loading your events...
+        </p>
+      {/if}
+
       <div class="flex justify-end">
       <button
         onclick={openCreateEvent}
@@ -282,7 +391,7 @@
             <h3 class="font-serif text-2xl text-[#8E2028]">
               The Week Ahead
             </h3>
-            <span class="text-2xl text-[#C6A052]">❦</span>
+            <span class="text-2xl text-[#C6A052]">🏛️</span>
           </div>
 
           <div class="mb-5 h-px bg-[#E6D5B8]"></div>
@@ -380,10 +489,11 @@
   {#if showEventForm}
   {#key editingEvent?.id ?? 'new'}
     <EventForm
-      selectedDate={selectedDate || localDateKey(new Date)}
+      selectedDate={selectedDate || localDateKey(new Date())}
       {editingEvent}
       onSave={saveEvent}
       onCancel={closeEventForm}
     />
   {/key}
+{/if}
 {/if}

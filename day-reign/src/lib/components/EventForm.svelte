@@ -8,7 +8,7 @@
     interface Props {
         selectedDate: string;
         editingEvent?: CalendarEvent | null;
-        onSave: (event: EventInput) => void;
+        onSave: (event: EventInput) => void | Promise<void>;
         onCancel: () => void;
     }
 
