@@ -177,7 +177,7 @@ const calendarDays = $derived.by(() => {
     {#each weekdays as weekday}
       <div
         class="py-3 text-center text-xs font-semibold
-               uppercase tracking-wider text-[#9A793F]"
+              uppercase tracking-wider text-[#9A793F]"
       >
         {weekday}
       </div>
