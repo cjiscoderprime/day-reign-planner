@@ -3,7 +3,9 @@ import type {
   EventInput
 } from '#lib/types/event.ts';
 
-const API = 'http://localhost:8000';
+const API = import.meta.env.DEV
+  ? 'http://localhost:8000'
+  : '';
 
 export interface AuthUser {
   id: string;
