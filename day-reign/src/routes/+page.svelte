@@ -23,6 +23,9 @@
     let events = $state<CalendarEvent[]>([]);
     let showEventForm = $state(false);
     let editingEvent = $state<CalendarEvent | null>(null);
+    
+    let showNextWeek = $state(false);
+    let showThisMonth = $state(false);
 
     const todayEvents = $derived.by(() => {
     if (!currentTime) return [];
@@ -34,8 +37,9 @@
       .sort(compareEvents);
     });
 
-    const weekEvents = $derived.by(() => {
-      if (!currentTime) return [];
+    
+  const weekEvents = $derived.by(() => {
+    if (!currentTime) return [];
 
     const monday = new Date(currentTime);
     monday.setHours(12, 0, 0, 0);
@@ -54,24 +58,62 @@
       .sort((a, b) =>
         a.date.localeCompare(b.date) || compareEvents(a, b)
       );
-    });
+  });
 
-    async function handleAuthenticated(account: AuthUser) {
-      user = account;
-      await loadEvents();
-    }
+  const nextWeekEvents = $derived.by(() => {
+    if (!currentTime) return [];
 
-    async function logout() {
-      try {
-        await api.logout();
-        user = null;
-        events = [];
-      } catch (error) {
-        apiError = error instanceof Error
-          ? error.message
-          : 'Could not log out';
-      }
+    const monday = new Date(currentTime);
+    monday.setHours(12, 0, 0, 0);
+
+    const offset = (monday.getDay() + 6) % 7;
+    monday.setDate(monday.getDate() - offset + 7);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+
+    const start = localDateKey(monday);
+    const end = localDateKey(sunday);
+
+    return events
+      .filter((event) => event.date >= start && event.date <= end)
+      .sort((a, b) =>
+        a.date.localeCompare(b.date) || compareEvents(a, b)
+      );
+  });
+
+  const monthEvents = $derived.by(() => {
+    if (!currentTime) return [];
+
+    const year = currentTime.getFullYear();
+    const month = currentTime.getMonth();
+
+    const start = localDateKey(new Date(year, month, 1));
+    const end = localDateKey(new Date(year, month + 1, 0));
+
+    return events
+      .filter((event) => event.date >= start && event.date <= end)
+      .sort((a, b) =>
+        a.date.localeCompare(b.date) || compareEvents(a, b)
+      );
+  });
+
+  async function handleAuthenticated(account: AuthUser) {
+    user = account;
+    await loadEvents();
+  }
+
+  async function logout() {
+    try {
+      await api.logout();
+      user = null;
+      events = [];
+    } catch (error) {
+      apiError = error instanceof Error
+        ? error.message
+        : 'Could not log out';
     }
+  }
 
     function compareEvents(a: CalendarEvent, b: CalendarEvent) {
       if (a.allDay !== b.allDay) {
@@ -389,7 +431,7 @@
         >
           <div class="mb-5 flex items-center justify-between">
             <h3 class="font-serif text-2xl text-[#8E2028]">
-              The Week Ahead
+              This Week
             </h3>
             <span class="text-2xl text-[#C6A052]">🏛️</span>
           </div>
@@ -416,6 +458,125 @@
 
         </article>
       </section>
+
+      
+      <!-- Optional dashboard sections -->
+      <section class="space-y-5">
+
+        <div
+          class="flex flex-wrap items-center justify-between
+                gap-4 rounded-2xl border border-[#E0D3BE]
+                bg-[#FFFDF8] p-5 shadow-sm"
+        >
+          <div>
+            <h3 class="font-serif text-xl text-[#8E2028]">
+              Customize Your Overview
+            </h3>
+            <p class="mt-1 text-sm text-[#766C60]">
+              Choose which additional schedules to display.
+            </p>
+          </div>
+
+          <div class="flex flex-wrap gap-5">
+
+            <label class="flex cursor-pointer items-center gap-3">
+              <span class="text-sm font-medium text-[#514943]">
+                Next Week
+              </span>
+              <input
+                type="checkbox"
+                role="switch"
+                bind:checked={showNextWeek}
+                class="h-5 w-5 accent-[#8E2028]"
+              />
+            </label>
+
+            <label class="flex cursor-pointer items-center gap-3">
+              <span class="text-sm font-medium text-[#514943]">
+                This Month
+              </span>
+              <input
+                type="checkbox"
+                role="switch"
+                bind:checked={showThisMonth}
+                class="h-5 w-5 accent-[#8E2028]"
+              />
+            </label>
+
+          </div>
+        </div>
+
+        {#if showNextWeek || showThisMonth}
+          <div class="grid gap-6 md:grid-cols-2">
+
+            {#if showNextWeek}
+              <article
+                class="rounded-2xl border border-[#E0D3BE]
+                      bg-[#FFFDF8] p-7 shadow-sm"
+              >
+                <h3 class="mb-5 font-serif text-2xl text-[#8E2028]">
+                  Next Week
+                </h3>
+
+                <div class="mb-5 h-px bg-[#E6D5B8]"></div>
+
+                {#each nextWeekEvents as event (event.id)}
+                  <div class="mb-3 rounded-xl bg-[#F8F3E9] p-4">
+                    <p class="font-semibold text-[#8E2028]">
+                      {event.title}
+                    </p>
+
+                    <p class="mt-1 text-sm text-[#766C60]">
+                      {event.date}
+                      · {event.allDay ? 'All day' : event.startTime}
+                      · {event.category}
+                    </p>
+                  </div>
+                {:else}
+                  <p class="text-sm text-[#766C60]">
+                    No events scheduled for next week.
+                  </p>
+                {/each}
+              </article>
+            {/if}
+
+            {#if showThisMonth}
+              <article
+                class="rounded-2xl border border-[#E0D3BE]
+                      bg-[#FFFDF8] p-7 shadow-sm"
+              >
+                <h3 class="mb-5 font-serif text-2xl text-[#8E2028]">
+                  This Month
+                </h3>
+
+                <div class="mb-5 h-px bg-[#E6D5B8]"></div>
+
+                {#each monthEvents as event (event.id)}
+                  <div class="mb-3 rounded-xl bg-[#F8F3E9] p-4">
+                    <p class="font-semibold text-[#8E2028]">
+                      {event.title}
+                    </p>
+
+                    <p class="mt-1 text-sm text-[#766C60]">
+                      {event.date}
+                      · {event.allDay ? 'All day' : event.startTime}
+                      · {event.category}
+                    </p>
+                  </div>
+                {:else}
+                  <p class="text-sm text-[#766C60]">
+                    No events scheduled this month.
+                  </p>
+                {/each}
+              </article>
+            {/if}
+
+          </div>
+        {/if}
+
+      </section>
+
+
 
       <!-- Calendar -->
       <Calendar bind:selectedDate {events}/>
