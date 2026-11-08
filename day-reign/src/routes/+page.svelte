@@ -297,6 +297,16 @@
           TEMPUS REGIT ACTUM
         </span>
 
+        <a
+          href="/journal"
+          class="rounded-lg bg-[#8E2028]
+                px-4 py-2 text-sm font-semibold
+                text-white transition
+                hover:bg-[#741920]"
+          >
+          + Add Memory
+        </a>
+
          <button
           onclick={logout}
           class="rounded-lg border border-[#C6A052]

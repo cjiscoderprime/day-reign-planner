@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers.events import router as events_router
+from app.routers.memories import router as memories_router
+
 from app.config import settings
 from app.database import check_database
 
@@ -53,7 +55,7 @@ app = FastAPI(
 )
 
 app.include_router(events_router)
-
+app.include_router(memories_router)
 app.include_router(auth_router)
 
 @app.middleware("http")

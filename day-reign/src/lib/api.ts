@@ -1,4 +1,9 @@
 import type {
+  Memory,
+  MemoryInput
+} from '#lib/types/memory.ts';
+
+import type {
   CalendarEvent,
   EventInput
 } from '#lib/types/event.ts';
@@ -84,5 +89,25 @@ export const api = {
     request<{ message: string }>(
       `/api/events/${id}`,
       { method: 'DELETE' }
-    )
+    ),
+    getMemories: () =>
+    request<Memory[]>('/api/memories'),
+
+    createMemory: (data: MemoryInput) =>
+      request<Memory>('/api/memories', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      }),
+
+    updateMemory: (id: string, data: MemoryInput) =>
+      request<Memory>(`/api/memories/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data)
+      }),
+
+    deleteMemory: (id: string) =>
+      request<{ message: string }>(
+        `/api/memories/${id}`,
+        { method: 'DELETE' }
+      )
 };
